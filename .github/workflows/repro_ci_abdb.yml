@@ -128,7 +128,6 @@ jobs:
         with:
           os: ${{ matrix.os }}
           command: deploy
-          noPublish: true
 
       - name: Invoke deployed action and check error signature
         env:
