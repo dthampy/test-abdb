@@ -6,19 +6,73 @@ on:
       - main
   workflow_dispatch:
 jobs:
+  precheck:
+    name: Check Stage Secrets
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: Validate required secrets
+        id: check
+        env:
+          CLIENTID_STAGE: ${{ secrets.CLIENTID_STAGE }}
+          CLIENTSECRET_STAGE: ${{ secrets.CLIENTSECRET_STAGE }}
+          TECHNICALACCID_STAGE: ${{ secrets.TECHNICALACCID_STAGE }}
+          TECHNICALACCEMAIL_STAGE: ${{ secrets.TECHNICALACCEMAIL_STAGE }}
+          IMSORGID_STAGE: ${{ secrets.IMSORGID_STAGE }}
+          SCOPES_STAGE: ${{ secrets.SCOPES_STAGE }}
+          AIO_RUNTIME_NAMESPACE_STAGE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+          AIO_RUNTIME_AUTH_STAGE: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
+          AIO_PROJECT_ID_STAGE: ${{ secrets.AIO_PROJECT_ID_STAGE }}
+          AIO_PROJECT_NAME_STAGE: ${{ secrets.AIO_PROJECT_NAME_STAGE }}
+          AIO_PROJECT_ORG_ID_STAGE: ${{ secrets.AIO_PROJECT_ORG_ID_STAGE }}
+          AIO_PROJECT_WORKSPACE_ID_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_STAGE }}
+          AIO_PROJECT_WORKSPACE_NAME_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE }}
+          AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE }}
+        run: |
+          set -euo pipefail
+          required=(
+            CLIENTID_STAGE
+            CLIENTSECRET_STAGE
+            TECHNICALACCID_STAGE
+            TECHNICALACCEMAIL_STAGE
+            IMSORGID_STAGE
+            SCOPES_STAGE
+            AIO_RUNTIME_NAMESPACE_STAGE
+            AIO_RUNTIME_AUTH_STAGE
+            AIO_PROJECT_ID_STAGE
+            AIO_PROJECT_NAME_STAGE
+            AIO_PROJECT_ORG_ID_STAGE
+            AIO_PROJECT_WORKSPACE_ID_STAGE
+            AIO_PROJECT_WORKSPACE_NAME_STAGE
+            AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE
+          )
+          missing=()
+          for v in "${required[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              missing+=("$v")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage deploy skipped. Missing secrets: ${missing[*]}"
+          else
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
   missing-secrets:
     name: Missing Stage Secrets (Setup Required)
-    if: ${{ secrets.CLIENTID_STAGE == '' || secrets.CLIENTSECRET_STAGE == '' || secrets.TECHNICALACCID_STAGE == '' || secrets.TECHNICALACCEMAIL_STAGE == '' || secrets.IMSORGID_STAGE == '' || secrets.SCOPES_STAGE == '' || secrets.AIO_RUNTIME_NAMESPACE_STAGE == '' || secrets.AIO_RUNTIME_AUTH_STAGE == '' || secrets.AIO_PROJECT_ID_STAGE == '' || secrets.AIO_PROJECT_NAME_STAGE == '' || secrets.AIO_PROJECT_ORG_ID_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_ID_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE == '' }}
+    needs: precheck
+    if: ${{ needs.precheck.outputs.should_deploy != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Explain required setup
-        run: |
-          echo "Stage deploy skipped because one or more required GitHub secrets are missing."
-          echo "Add the secrets listed in .github/workflows/deploy_stage.yml and re-run this workflow."
+        run: echo "Add the required Stage secrets and re-run."
 
   deploy:
     name: Deploy to Stage
-    if: ${{ secrets.CLIENTID_STAGE != '' && secrets.CLIENTSECRET_STAGE != '' && secrets.TECHNICALACCID_STAGE != '' && secrets.TECHNICALACCEMAIL_STAGE != '' && secrets.IMSORGID_STAGE != '' && secrets.SCOPES_STAGE != '' && secrets.AIO_RUNTIME_NAMESPACE_STAGE != '' && secrets.AIO_RUNTIME_AUTH_STAGE != '' && secrets.AIO_PROJECT_ID_STAGE != '' && secrets.AIO_PROJECT_NAME_STAGE != '' && secrets.AIO_PROJECT_ORG_ID_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_ID_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE != '' }}
+    needs: precheck
+    if: ${{ needs.precheck.outputs.should_deploy == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 1
