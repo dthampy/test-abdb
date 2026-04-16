@@ -1,12 +1,24 @@
-name: AIO App CI
+name: Deploy to Stage
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 jobs:
+  missing-secrets:
+    name: Missing Stage Secrets (Setup Required)
+    if: ${{ secrets.CLIENTID_STAGE == '' || secrets.CLIENTSECRET_STAGE == '' || secrets.TECHNICALACCID_STAGE == '' || secrets.TECHNICALACCEMAIL_STAGE == '' || secrets.IMSORGID_STAGE == '' || secrets.SCOPES_STAGE == '' || secrets.AIO_RUNTIME_NAMESPACE_STAGE == '' || secrets.AIO_RUNTIME_AUTH_STAGE == '' || secrets.AIO_PROJECT_ID_STAGE == '' || secrets.AIO_PROJECT_NAME_STAGE == '' || secrets.AIO_PROJECT_ORG_ID_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_ID_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE == '' || secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain required setup
+        run: |
+          echo "Stage deploy skipped because one or more required GitHub secrets are missing."
+          echo "Add the secrets listed in .github/workflows/deploy_stage.yml and re-run this workflow."
+
   deploy:
     name: Deploy to Stage
+    if: ${{ secrets.CLIENTID_STAGE != '' && secrets.CLIENTSECRET_STAGE != '' && secrets.TECHNICALACCID_STAGE != '' && secrets.TECHNICALACCEMAIL_STAGE != '' && secrets.IMSORGID_STAGE != '' && secrets.SCOPES_STAGE != '' && secrets.AIO_RUNTIME_NAMESPACE_STAGE != '' && secrets.AIO_RUNTIME_AUTH_STAGE != '' && secrets.AIO_PROJECT_ID_STAGE != '' && secrets.AIO_PROJECT_NAME_STAGE != '' && secrets.AIO_PROJECT_ORG_ID_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_ID_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE != '' && secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE != '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 1
@@ -52,6 +64,7 @@ jobs:
           AIO_PROJECT_ID: ${{ secrets.AIO_PROJECT_ID_STAGE }}
           AIO_PROJECT_NAME: ${{ secrets.AIO_PROJECT_NAME_STAGE }}
           AIO_PROJECT_ORG_ID: ${{ secrets.AIO_PROJECT_ORG_ID_STAGE }}
+          AIO_PROJECT_ORG_IMS__ORG__ID: ${{ secrets.IMSORGID_STAGE }}
           AIO_PROJECT_WORKSPACE_ID: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_STAGE }}
           AIO_PROJECT_WORKSPACE_NAME: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE }}
           AIO_PROJECT_WORKSPACE_DETAILS_SERVICES: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE }}

@@ -1,0 +1,149 @@
+name: Repro ABDB CI Missing IMS Params
+
+on:
+  workflow_dispatch:
+
+jobs:
+  precheck:
+    name: Check Required Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate secret presence
+        env:
+          CLIENTID_STAGE: ${{ secrets.CLIENTID_STAGE }}
+          CLIENTSECRET_STAGE: ${{ secrets.CLIENTSECRET_STAGE }}
+          TECHNICALACCID_STAGE: ${{ secrets.TECHNICALACCID_STAGE }}
+          TECHNICALACCEMAIL_STAGE: ${{ secrets.TECHNICALACCEMAIL_STAGE }}
+          IMSORGID_STAGE: ${{ secrets.IMSORGID_STAGE }}
+          SCOPES_STAGE: ${{ secrets.SCOPES_STAGE }}
+          AIO_RUNTIME_NAMESPACE_STAGE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+          AIO_RUNTIME_AUTH_STAGE: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
+          AIO_PROJECT_ID_STAGE: ${{ secrets.AIO_PROJECT_ID_STAGE }}
+          AIO_PROJECT_NAME_STAGE: ${{ secrets.AIO_PROJECT_NAME_STAGE }}
+          AIO_PROJECT_ORG_ID_STAGE: ${{ secrets.AIO_PROJECT_ORG_ID_STAGE }}
+          AIO_PROJECT_WORKSPACE_ID_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_STAGE }}
+          AIO_PROJECT_WORKSPACE_NAME_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE }}
+          AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE }}
+          IMS_OAUTH_S2S_CLIENT_ID_STAGE: ${{ secrets.IMS_OAUTH_S2S_CLIENT_ID_STAGE }}
+          IMS_OAUTH_S2S_CLIENT_SECRET_STAGE: ${{ secrets.IMS_OAUTH_S2S_CLIENT_SECRET_STAGE }}
+          IMS_OAUTH_S2S_ORG_ID_STAGE: ${{ secrets.IMS_OAUTH_S2S_ORG_ID_STAGE }}
+          IMS_OAUTH_S2S_SCOPES_STAGE: ${{ secrets.IMS_OAUTH_S2S_SCOPES_STAGE }}
+        run: |
+          set -euo pipefail
+          required=(
+            CLIENTID_STAGE
+            CLIENTSECRET_STAGE
+            TECHNICALACCID_STAGE
+            TECHNICALACCEMAIL_STAGE
+            IMSORGID_STAGE
+            SCOPES_STAGE
+            AIO_RUNTIME_NAMESPACE_STAGE
+            AIO_RUNTIME_AUTH_STAGE
+            AIO_PROJECT_ID_STAGE
+            AIO_PROJECT_NAME_STAGE
+            AIO_PROJECT_ORG_ID_STAGE
+            AIO_PROJECT_WORKSPACE_ID_STAGE
+            AIO_PROJECT_WORKSPACE_NAME_STAGE
+            AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE
+            IMS_OAUTH_S2S_CLIENT_ID_STAGE
+            IMS_OAUTH_S2S_CLIENT_SECRET_STAGE
+            IMS_OAUTH_S2S_ORG_ID_STAGE
+            IMS_OAUTH_S2S_SCOPES_STAGE
+          )
+          missing=0
+          for v in "${required[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Missing secret: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+  repro:
+    name: Deploy via CI and Reproduce Runtime Error
+    runs-on: ubuntu-latest
+    needs: precheck
+    strategy:
+      max-parallel: 1
+      matrix:
+        node-version: ['20']
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: npm install
+        run: npm i
+
+      - name: Setup CLI
+        uses: adobe/aio-cli-setup-action@1.3.0
+        with:
+          os: ${{ matrix.os }}
+          version: 11.x.x
+
+      - name: Auth (OAuth S2S)
+        uses: adobe/aio-apps-action@3.3.0
+        with:
+          os: ${{ matrix.os }}
+          command: oauth_sts
+          CLIENTID: ${{ secrets.CLIENTID_STAGE }}
+          CLIENTSECRET: ${{ secrets.CLIENTSECRET_STAGE }}
+          TECHNICALACCOUNTID: ${{ secrets.TECHNICALACCID_STAGE }}
+          TECHNICALACCOUNTEMAIL: ${{ secrets.TECHNICALACCEMAIL_STAGE }}
+          IMSORGID: ${{ secrets.IMSORGID_STAGE }}
+          SCOPES: ${{ secrets.SCOPES_STAGE }}
+
+      - name: Build
+        env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+        uses: adobe/aio-apps-action@3.3.0
+        with:
+          os: ${{ matrix.os }}
+          command: build
+
+      - name: Deploy (customer-like S2S env wiring)
+        env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
+          AIO_PROJECT_ID: ${{ secrets.AIO_PROJECT_ID_STAGE }}
+          AIO_PROJECT_NAME: ${{ secrets.AIO_PROJECT_NAME_STAGE }}
+          AIO_PROJECT_ORG_ID: ${{ secrets.AIO_PROJECT_ORG_ID_STAGE }}
+          AIO_PROJECT_ORG_IMS__ORG__ID: ${{ secrets.IMSORGID_STAGE }}
+          AIO_PROJECT_WORKSPACE_ID: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_STAGE }}
+          AIO_PROJECT_WORKSPACE_NAME: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE }}
+          AIO_PROJECT_WORKSPACE_DETAILS_SERVICES: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE }}
+          IMS_OAUTH_S2S_CLIENT_ID: ${{ secrets.IMS_OAUTH_S2S_CLIENT_ID_STAGE }}
+          IMS_OAUTH_S2S_CLIENT_SECRET: ${{ secrets.IMS_OAUTH_S2S_CLIENT_SECRET_STAGE }}
+          IMS_OAUTH_S2S_ORG_ID: ${{ secrets.IMS_OAUTH_S2S_ORG_ID_STAGE }}
+          IMS_OAUTH_S2S_SCOPES: ${{ secrets.IMS_OAUTH_S2S_SCOPES_STAGE }}
+        uses: adobe/aio-apps-action@3.3.0
+        with:
+          os: ${{ matrix.os }}
+          command: deploy
+          noPublish: true
+
+      - name: Invoke deployed action and check error signature
+        env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
+        run: |
+          set -euo pipefail
+          ACTION="${AIO_RUNTIME_NAMESPACE}/abdb-repro/generic"
+          aio rt action invoke "$ACTION" --result -u "$AIO_RUNTIME_AUTH" --apihost https://adobeioruntime.net > invoke.out || true
+          echo "---- Invocation output ----"
+          cat invoke.out
+          echo "---------------------------"
+          if grep -q "Missing required parameters: clientId, clientSecret, orgId" invoke.out; then
+            echo "Reproduced customer CI issue."
+            exit 0
+          fi
+          echo "::error::Expected CI failure signature not found."
+          exit 1
