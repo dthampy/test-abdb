@@ -109,7 +109,7 @@ jobs:
           os: ${{ matrix.os }}
           command: build
 
-      - name: Deploy (customer-like S2S env wiring)
+      - name: Deploy (control: direct CLI)
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
@@ -124,10 +124,7 @@ jobs:
           IMS_OAUTH_S2S_CLIENT_SECRET: ${{ secrets.IMS_OAUTH_S2S_CLIENT_SECRET_STAGE }}
           IMS_OAUTH_S2S_ORG_ID: ${{ secrets.IMS_OAUTH_S2S_ORG_ID_STAGE }}
           IMS_OAUTH_S2S_SCOPES: ${{ secrets.IMS_OAUTH_S2S_SCOPES_STAGE }}
-        uses: adobe/aio-apps-action@3.3.0
-        with:
-          os: ${{ matrix.os }}
-          command: deploy
+        run: aio app deploy --no-build
 
       - name: Invoke deployed action and check error signature
         env:
