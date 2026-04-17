@@ -101,13 +101,10 @@ jobs:
           IMSORGID: ${{ secrets.IMSORGID_STAGE }}
           SCOPES: ${{ secrets.SCOPES_STAGE }}
 
-      - name: Build
+      - name: Build (control: direct CLI)
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
-        uses: adobe/aio-apps-action@3.3.0
-        with:
-          os: ${{ matrix.os }}
-          command: build
+        run: aio app build
 
       - name: "Deploy (control: direct CLI)"
         env:
@@ -124,7 +121,9 @@ jobs:
           IMS_OAUTH_S2S_CLIENT_SECRET: ${{ secrets.IMS_OAUTH_S2S_CLIENT_SECRET_STAGE }}
           IMS_OAUTH_S2S_ORG_ID: ${{ secrets.IMS_OAUTH_S2S_ORG_ID_STAGE }}
           IMS_OAUTH_S2S_SCOPES: ${{ secrets.IMS_OAUTH_S2S_SCOPES_STAGE }}
-        run: aio app deploy --no-build
+        run: |
+          rm -f dist/last-deployed-actions.json || true
+          aio app deploy --no-build
 
       - name: Invoke deployed action and check error signature
         env:
